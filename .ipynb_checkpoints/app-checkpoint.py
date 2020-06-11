@@ -47,6 +47,8 @@ def make_plotly_total_sums():
 app = dash.Dash(__name__,
             external_stylesheets=[dbc.themes.BOOTSTRAP])
 
+server = app.server
+
 app.layout = dbc.Container([
     
     html.Div(style={'textAlign': 'center'}, children=[
