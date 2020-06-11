@@ -185,4 +185,4 @@ def update_graph(crime_choice):
     return fig
 
 if __name__ == '__main__':
-    app.run_server(debug = True, use_reloader = False)
+    app.run_server(use_reloader = False)
