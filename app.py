@@ -13,6 +13,48 @@ data = pd.read_csv('combined_data.csv')
 grouped_data = data[['Year', 'Code', 'Race', 'Count']].groupby(['Year', 'Code','Race']).sum()
 grouped_data = grouped_data.reset_index()
 
+
+## Dash components
+navbar = dbc.NavbarSimple(
+    children=[
+        dbc.NavItem(dbc.NavLink("About", href="#"))
+    ],
+    brand="Crime and Race",
+    brand_href="#",
+    color="success",
+    dark=True,
+)
+
+jumbotron = dbc.Jumbotron(
+    [
+        html.H1("Crime", className="display-3"),
+        html.P(children=[
+            "This data is a combination of US Government records collected on 6/9/2020."
+            "The data comes from API calls to the ", 
+            html.A('Crime Data Explorer', href='https://crime-data-explorer.fr.cloud.gov/', target="_blank"),
+            " and the ",
+            html.A('US Census Bureau', href='https://data.census.gov/cedsci/profile?q=United%20States&g=0100000US&tid=ACSDP1Y2018.DP05', target="_blank"),
+            ". The creation script is available on github."
+        
+        ],
+            className="lead"
+        ),
+        html.P('These two graphs show total crimes commited by race and the percent of those'
+               ' crimes by total population of that race. You can change the type of crime below.',
+               className="lead"),
+        html.Hr(className="my-2"),
+        html.Div(style={'textAlign': 'center'}, children=[
+            dcc.Dropdown(
+                    id='crime_choice',
+                    options=[{'label': i + ' ', 'value': i} for i in data['Crime'].unique()],
+                    value='Aggravated Assault'
+                )
+        ]),
+        html.Br(), html.Br(), html.Br(), html.Br()
+    ]
+)
+
+
 def make_plotly_total_sums():
     df = grouped_data.merge(
         data[['Year', 'Code', 'Race', 'Population_Totals']],
@@ -23,14 +65,15 @@ def make_plotly_total_sums():
     ).sum(
     ).reset_index()
     
-    total_sums = px.line(x = df['Year'],
-                        y = df['Count'] / df['Population_Totals'],
-                        color = df['Race'],
-                        labels = {'x':'Year', 'y':'Total Incidents / Total Population'})
-    total_sums.update_layout(
+    fig = px.line(x = df['Year'],
+                  y = df['Count'] / df['Population_Totals'],
+                  color = df['Race'],
+                  labels = {'x':'Year', 'y':'Total Incidents / Total Population'},
+                  template='simple_white')
+    fig.update_layout(
         legend=dict(
-            x=.8,
-            y=1,
+            x=0,
+            y=1.2,
             traceorder="normal",
             font=dict(
                 family="sans-serif",
@@ -40,57 +83,83 @@ def make_plotly_total_sums():
             bgcolor="LightSteelBlue",
             bordercolor="Black",
             borderwidth=2
-        )
+        ),
+        font = dict(
+            color='white'
+        ),
+        paper_bgcolor='rgba(42,161,152,0)',
+        plot_bgcolor='rgba(0,0,0,0)',
+        legend_orientation="h",
+        legend_title_text='Race'
     )
-    return total_sums
+    return fig
 
 app = dash.Dash(__name__,
-            external_stylesheets=[dbc.themes.BOOTSTRAP])
-
+            external_stylesheets=[dbc.themes.SOLAR])
 server = app.server
+app.title = 'Race and Crime in America'
 
 app.layout = dbc.Container([
-    
+    ## Navbar and Header
+    navbar,
+    html.Br(),
     html.Div(style={'textAlign': 'center'}, children=[
-        html.H1('Crime Rates By State and Race')
+        html.H1([
+            html.Strong('Crime Rates By State and Race')
+        ])
     ]),
+    html.Hr(style={'border': '2px solid white'}),
+    html.Br(),
     
-    html.Div(children=[html.Br()]),
-    
-    html.Div(style={'textAlign': 'center'}, children=[
-        dcc.Dropdown(
-                id='crime_choice',
-                options=[{'label': i + ' ', 'value': i} for i in data['Crime'].unique()],
-                value='Aggravated Assault'
-            )
-    ]),
-    
-    html.Div(children=[html.Br()]),
-        
+    ## First two Graphs and jumbotron
     dbc.Row([
-            dbc.Col(
-                html.Div([
-                    html.H3('Sum of Incidents'),
-                    dcc.Graph(id='sum_indcident')
-                ],style={'textAlign': 'center'}),
-            md=6),
+        
+        dbc.Col(jumbotron, md=4),
+        
+        dbc.Col([
             
-            dbc.Col(
+            dbc.Row([
+                dbc.Col(
+                    html.Div([
+                        html.H3('Sum of Incidents'),
+                        dcc.Graph(id='sum_indcident'),
+                        html.Br()
+                    ],style={'textAlign': 'center'}),
+                md=12),
+            ]),
+
+            dbc.Row([
+                dbc.Col(
+                    html.Div([
+                        html.H3('Average of Incident %'),
+                        dcc.Graph(id='avg_%')
+                    ],style={'textAlign': 'center'}),
+                md=12)
+            ])
+            
+        ], md=8)
+        
+    ], align="center"),
+    html.Br(), html.Br(),
+
+    ## Total crimes % by race
+    dbc.Row([
+        dbc.Col(
                 html.Div([
-                    html.H3('Average of Incident %'),
-                    dcc.Graph(id='avg_%')
-                ],style={'textAlign': 'center'}),
-            md=6)
-        ],
-        align="center"
-    ),
+                    html.H3('% of Race by All Crimes'),
+                    dcc.Graph(id='total_crime', figure=make_plotly_total_sums())
+                ],style={'textAlign': 'center'})
+        )  
+        ]),
     
+    ## US map of Crimes
      dbc.Row([
           dbc.Col(
+              
             html.Div(style={'textAlign': 'center'}, children=[
                 dcc.Dropdown(
                         id='race',
-                        options=[{'label': i + ' ', 'value': i} for i in np.append(data['Race'].unique(), 'All')],
+                        options=[{'label': i + ' ', 'value': i} for i in np.append(['All'], data['Race'].unique())],
                         value='All'
                     ),
                 html.Div(children=[html.Br()]),
@@ -121,14 +190,15 @@ app.layout = dbc.Container([
         align="center"
     ),
     
-    dbc.Row(
-        [
-        dbc.Col(
-                html.Div([
-                    dcc.Graph(id='total_crime', figure=make_plotly_total_sums())
-                ],style={'textAlign': 'center'}),
-            md=12)  
-        ])
+    ## Footer with Citation
+    html.Br(),
+    html.Br(),
+    html.Footer('United States Department of Health and Human Services (US DHHS), Centers for Disease Control and Prevention (CDC),'
+                'National Center for Health Statistics (NCHS), Bridged-Race Population Estimates, United States July 1st resident '
+                'population by state, county, age, sex, bridged-race, and Hispanic origin. Compiled from 1990-1999 bridged-race intercensal '
+                'population estimates (released by NCHS on 7/26/2004); revised bridged-race 2000-2009 intercensal population estimates (released by NCHS on 10/26/2012);'
+                ' and bridged-race Vintage 2018 (2010-2018) postcensal population estimates (released by NCHS on 6/25/2019). Available on CDC WONDER Online Database.'
+                ' Accessed at http://wonder.cdc.gov/bridged-race-v2018.html on Jun 9, 2020 5:27:20 PM')
     
 ],fluid=True)
 
@@ -156,6 +226,14 @@ def update_graph(crime, race, rates):
             fig = px.choropleth(df, locations="Code", color = df['Count']/df['Population'],
                                 locationmode="USA-states", scope="usa",
                                 animation_frame='Year')
+    fig.update_layout(
+        font = dict(
+            color='white'
+        ),
+        paper_bgcolor='rgba(42,161,152,0)',
+        plot_bgcolor='rgba(0,0,0,0)',
+        legend_title_text='Race'
+    )
     return fig
 
 @app.callback(
@@ -168,8 +246,30 @@ def update_graph(crime_choice):
     fig = px.line(x = df['Year'],
                   y = df['Count'],
                   labels = {'x':'Year', 'y':'Sum of Total Incidents by Race'},
-                 color=df['Race'])
-    fig.update_layout(legend_orientation="h")
+                 color=df['Race'],
+                 template='simple_white')
+    fig.update_layout(
+        legend=dict(
+            x=0,
+            y=1.2,
+            traceorder="normal",
+            font=dict(
+                family="sans-serif",
+                size=12,
+                color="black"
+            ),
+            bgcolor="LightSteelBlue",
+            bordercolor="Black",
+            borderwidth=2
+        ),
+        font = dict(
+            color='white'
+        ),
+        paper_bgcolor='rgba(42,161,152,0)',
+        plot_bgcolor='rgba(0,0,0,0)',
+        legend_orientation="h",
+        legend_title_text='Race'
+    )
     return fig
 
 @app.callback(
@@ -182,8 +282,30 @@ def update_graph(crime_choice):
     fig = px.line(x = df['Year'],
                   y = df['Count'] / df['Population_Totals'],
                   labels = {'x':'Year', 'y':'Average % of Crime Per Population'},
-                 color=df['Race'])
-    fig.update_layout(legend_orientation="h")
+                 color=df['Race'],
+                 template='simple_white')
+    fig.update_layout(
+        legend=dict(
+            x=0,
+            y=1.2,
+            traceorder="normal",
+            font=dict(
+                family="sans-serif",
+                size=12,
+                color="black"
+            ),
+            bgcolor="LightSteelBlue",
+            bordercolor="Black",
+            borderwidth=2
+        ),
+        font = dict(
+            color='white'
+        ),
+        paper_bgcolor='rgba(42,161,152,0)',
+        plot_bgcolor='rgba(0,0,0,0)',
+        legend_orientation="h",
+        legend_title_text='Race'
+    )
     return fig
 
 if __name__ == '__main__':
